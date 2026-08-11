@@ -2,7 +2,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 3000;
+const PORT = Number(process.env.APP_PORT || 3000);
+const HOST = process.env.APP_IP || '127.0.0.1';
 const PUBLIC_DIR = __dirname;
 
 const mimeTypes = {
@@ -56,6 +57,6 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(PORT, HOST, () => {
+    console.log(`Server running at http://${HOST}:${PORT}/`);
 });
