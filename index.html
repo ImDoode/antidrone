@@ -281,27 +281,29 @@
             </p>
           </div>
 
-          <form class="contact-form cta-panel__form" onsubmit="return false;">
+          <form class="contact-form cta-panel__form" novalidate>
             <label class="contact-form__field">
               <span class="contact-form__label">Имя</span>
-              <input class="contact-form__input" type="text" placeholder="Ваше имя" />
+              <input class="contact-form__input" type="text" name="name" placeholder="Ваше имя" />
             </label>
             <label class="contact-form__field">
               <span class="contact-form__label">Телефон</span>
-              <input class="contact-form__input" type="tel" placeholder="+7 (___) ___-__-__" />
+              <input class="contact-form__input" type="tel" name="phone" placeholder="+7 (___) ___-__-__" />
             </label>
             <label class="contact-form__field">
               <span class="contact-form__label">Email</span>
-              <input class="contact-form__input" type="email" placeholder="name@company.ru" />
+              <input class="contact-form__input" type="email" name="email" placeholder="name@company.ru" />
             </label>
             <label class="contact-form__field">
               <span class="contact-form__label">Описание объекта</span>
               <textarea
                 class="contact-form__textarea"
+                name="description"
                 rows="4"
                 placeholder="Площадь, высота, тип инфраструктуры, требуемый уровень защиты"
               ></textarea>
             </label>
+            <p class="contact-form__status" role="status" aria-live="polite" hidden></p>
             <button class="button contact-form__submit" type="submit">Отправить запрос</button>
           </form>
         </div>

@@ -414,6 +414,37 @@ a {
   box-shadow: 0 0 0 3px rgba(220, 168, 91, 0.2);
 }
 
+.contact-form__status {
+  min-height: 1.4rem;
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.contact-form__status:not([hidden]) {
+  opacity: 1;
+}
+
+.contact-form__status.is-success {
+  color: #9fe8b0;
+}
+
+.contact-form__status.is-error {
+  color: #ffb0b0;
+}
+
+.contact-form__submit:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.contact-form[aria-busy='true'] .contact-form__input,
+.contact-form[aria-busy='true'] .contact-form__textarea {
+  opacity: 0.78;
+}
+
 .site-footer {
   border-top: 1px solid var(--line);
   padding: 26px 0;

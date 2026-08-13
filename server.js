@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const nodemailer = require('nodemailer');
 
 const PORT = Number(process.env.APP_PORT || 3000);
 const HOST = process.env.APP_IP || '127.0.0.1';
@@ -20,18 +21,156 @@ const mimeTypes = {
   '.webp': 'image/webp',
 };
 
-const server = http.createServer((req, res) => {
+// SMTP
+const mailTransporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT || 465),
+  secure: process.env.SMTP_SECURE !== 'false',
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASSWORD,
+  },
+});
+
+const CONTACT_EMAIL = 'imdoode@gmail.com';
+
+function sendJson(res, statusCode, data) {
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+  });
+
+  res.end(JSON.stringify(data));
+}
+
+function readRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    let size = 0;
+
+    req.on('data', (chunk) => {
+      size += chunk.length;
+
+      // Максимум 100 KB
+      if (size > 100 * 1024) {
+        reject(new Error('Request body is too large'));
+        req.destroy();
+        return;
+      }
+
+      body += chunk;
+    });
+
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(body));
+      } catch {
+        reject(new Error('Invalid JSON'));
+      }
+    });
+
+    req.on('error', reject);
+  });
+}
+
+async function handleContactForm(req, res) {
+  try {
+    const data = await readRequestBody(req);
+
+    const name = String(data.name || '').trim();
+    const phone = String(data.phone || '').trim();
+    const email = String(data.email || '').trim();
+    const description = String(data.description || '').trim();
+
+    if (!name || !phone || !email || !description) {
+      sendJson(res, 400, {
+        success: false,
+        message: 'Заполните все поля',
+      });
+      return;
+    }
+
+    // Простая проверка email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+      sendJson(res, 400, {
+        success: false,
+        message: 'Некорректный email',
+      });
+      return;
+    }
+
+    await mailTransporter.sendMail({
+      from: process.env.SMTP_USER,
+      to: CONTACT_EMAIL,
+      replyTo: email,
+      subject: `Новая заявка с сайта — ${name}`,
+      text: `
+Новая заявка с сайта.
+
+Имя: ${name}
+Телефон: ${phone}
+Email: ${email}
+
+Описание объекта:
+${description}
+      `.trim(),
+      html: `
+        <h2>Новая заявка с сайта</h2>
+
+        <p><strong>Имя:</strong> ${escapeHtml(name)}</p>
+        <p><strong>Телефон:</strong> ${escapeHtml(phone)}</p>
+        <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+
+        <h3>Описание объекта:</h3>
+        <p>${escapeHtml(description).replace(/\n/g, '<br>')}</p>
+      `,
+    });
+
+    sendJson(res, 200, {
+      success: true,
+      message: 'Заявка успешно отправлена',
+    });
+  } catch (error) {
+    console.error('Contact form error:', error);
+
+    sendJson(res, 500, {
+      success: false,
+      message: 'Не удалось отправить заявку',
+    });
+  }
+}
+
+function escapeHtml(value) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+const server = http.createServer(async (req, res) => {
+  // API формы
+  if (req.method === 'POST' && req.url === '/api/contact') {
+    await handleContactForm(req, res);
+    return;
+  }
+
+  // Главная страница и статика
   let urlPath = decodeURIComponent(req.url.split('?')[0]);
 
-  // Главная страница
   if (urlPath === '/') {
     urlPath = '/index.html';
   }
 
-  const filePath = path.join(PUBLIC_DIR, urlPath);
+  const filePath = path.resolve(PUBLIC_DIR, `.${urlPath}`);
 
   // Защита от выхода за пределы PUBLIC_DIR
-  if (!filePath.startsWith(PUBLIC_DIR)) {
+  if (
+    filePath !== PUBLIC_DIR &&
+    !filePath.startsWith(`${PUBLIC_DIR}${path.sep}`)
+  ) {
     res.writeHead(403);
     res.end('Forbidden');
     return;
@@ -42,12 +181,14 @@ const server = http.createServer((req, res) => {
       res.writeHead(404, {
         'Content-Type': 'text/plain; charset=utf-8',
       });
+
       res.end('Not Found');
       return;
     }
 
     const ext = path.extname(filePath).toLowerCase();
-    const contentType = mimeTypes[ext] || 'application/octet-stream';
+    const contentType =
+      mimeTypes[ext] || 'application/octet-stream';
 
     res.writeHead(200, {
       'Content-Type': contentType,
@@ -58,5 +199,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-    console.log(`Server running at http://${HOST}:${PORT}/`);
+  console.log(`Server running at http://${HOST}:${PORT}/`);
 });
