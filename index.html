@@ -303,6 +303,15 @@
                 placeholder="Площадь, высота, тип инфраструктуры, требуемый уровень защиты"
               ></textarea>
             </label>
+
+            <div
+              class="smart-captcha"
+              data-sitekey="ysc1_2bTrAyjofnfMkQbh4iNu4cWUcjaRQM90mO6LoYhO80de00e5"
+              data-theme="dark"
+              data-hl="ru"
+              style="height: 100px; max-width: 100%;"
+            ></div>
+
             <p class="contact-form__status" role="status" aria-live="polite" hidden></p>
             <button class="button contact-form__submit" type="submit">Отправить запрос</button>
           </form>
@@ -317,6 +326,7 @@
       </div>
     </footer>
 
+    <script src="https://smartcaptcha.yandexcloud.net/captcha.js" defer></script>
     <script src="./static/glightbox.min.js"></script>
     <script src="./static/script.js"></script>
   </body>

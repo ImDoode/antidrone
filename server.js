@@ -102,7 +102,7 @@ async function handleContactForm(req, res) {
 
     await mailTransporter.sendMail({
       from: process.env.SMTP_USER,
-      to: process.env.CONTACT_EMAIL,
+      to: process.env.CONTACT_EMAIL || CONTACT_EMAIL,
       replyTo: email,
       subject: `Новая заявка с сайта — ${name}`,
       text: `
