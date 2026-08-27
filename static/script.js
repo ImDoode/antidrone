@@ -56,17 +56,43 @@ if (contactForm) {
   let isSubmitting = false;
 
   const getCaptchaToken = () => {
+    const hiddenTokenInput = document.querySelector('[name="smart-token"]');
+
+    if (hiddenTokenInput && typeof hiddenTokenInput.value === 'string' && hiddenTokenInput.value.trim()) {
+      return hiddenTokenInput.value.trim();
+    }
+
+    if (window.smartCaptcha && typeof window.smartCaptcha.getResponse === 'function') {
+      try {
+        const token = window.smartCaptcha.getResponse();
+        if (typeof token === 'string' && token.trim()) {
+          return token.trim();
+        }
+      } catch (error) {
+        // Ничего не делаем — просто пробуем ниже.
+      }
+    }
+
     if (!captchaWidget) {
       return '';
     }
 
-    return (
-      captchaWidget.getAttribute('data-token') ||
-      captchaWidget.dataset.token ||
-      captchaWidget.getAttribute('data-captcha-token') ||
-      captchaWidget.getAttribute('data-smartcaptcha-token') ||
-      ''
-    );
+    const directValues = [
+      captchaWidget.getAttribute('data-token'),
+      captchaWidget.dataset.token,
+      captchaWidget.getAttribute('data-captcha-token'),
+      captchaWidget.getAttribute('data-smartcaptcha-token'),
+      captchaWidget.getAttribute('value'),
+      captchaWidget.value,
+    ];
+
+    for (const value of directValues) {
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+
+    return '';
   };
 
   const setStatus = (message, type = '') => {
@@ -176,9 +202,9 @@ if (contactForm) {
 
       setStatus(result.message || 'Заявка успешно отправлена', 'success');
       contactForm.reset();
-      const widget = document.querySelector('.smart-captcha');
-      if (widget && typeof widget.reset === 'function') {
-        widget.reset();
+
+      if (window.smartCaptcha && typeof window.smartCaptcha.reset === 'function') {
+        window.smartCaptcha.reset();
       }
     } catch (error) {
       setStatus(error.message || 'Не удалось отправить заявку', 'error');
