@@ -1,6 +1,8 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
+const querystring = require('querystring');
 const nodemailer = require('nodemailer');
 
 const PORT = Number(process.env.APP_PORT || 3000);
@@ -33,6 +35,64 @@ const mailTransporter = nodemailer.createTransport({
 });
 
 const CONTACT_EMAIL = 'imdoode@gmail.com';
+const SMARTCAPTCHA_SERVER_KEY = process.env.SMARTCAPTCHA_SERVER_KEY || '';
+
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0].trim();
+  }
+
+  const remoteIp = req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : '';
+  return remoteIp.startsWith('::ffff:') ? remoteIp.slice(7) : remoteIp;
+}
+
+function checkCaptcha(token, ip, callback) {
+  if (!SMARTCAPTCHA_SERVER_KEY || !token) {
+    callback(false);
+    return;
+  }
+
+  const options = {
+    hostname: 'smartcaptcha.yandexcloud.net',
+    port: 443,
+    path: '/validate?' + querystring.stringify({
+      secret: SMARTCAPTCHA_SERVER_KEY,
+      token,
+      ip,
+    }),
+    method: 'GET',
+  };
+
+  const req = https.request(options, (res) => {
+    const chunks = [];
+
+    res.on('data', (chunk) => chunks.push(chunk));
+    res.on('end', () => {
+      try {
+        if (res.statusCode !== 200) {
+          console.error(`SmartCaptcha validation failed: status=${res.statusCode}; body=${Buffer.concat(chunks).toString()}`);
+          callback(false);
+          return;
+        }
+
+        const payload = JSON.parse(Buffer.concat(chunks).toString());
+        callback(payload.status === 'ok');
+      } catch (error) {
+        console.error('SmartCaptcha parse error:', error);
+        callback(false);
+      }
+    });
+  });
+
+  req.on('error', (error) => {
+    console.error('SmartCaptcha request error:', error);
+    callback(false);
+  });
+
+  req.end();
+}
 
 function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, {
@@ -80,11 +140,32 @@ async function handleContactForm(req, res) {
     const phone = String(data.phone || '').trim();
     const email = String(data.email || '').trim();
     const description = String(data.description || '').trim();
+    const captchaToken = String(data.captchaToken || data.token || '').trim();
 
     if (!name || !phone || !email || !description) {
       sendJson(res, 400, {
         success: false,
         message: 'Заполните все поля',
+      });
+      return;
+    }
+
+    if (!captchaToken) {
+      sendJson(res, 400, {
+        success: false,
+        message: 'Подтвердите, что вы не робот',
+      });
+      return;
+    }
+
+    const captchaPassed = await new Promise((resolve) => {
+      checkCaptcha(captchaToken, getClientIp(req), resolve);
+    });
+
+    if (!captchaPassed) {
+      sendJson(res, 400, {
+        success: false,
+        message: 'Капча не пройдена. Попробуйте ещё раз.',
       });
       return;
     }
