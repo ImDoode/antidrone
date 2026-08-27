@@ -54,33 +54,19 @@ if (contactForm) {
   const captchaWidget = document.querySelector('.smart-captcha');
 
   let isSubmitting = false;
-  let captchaValid = !captchaWidget;
 
-  const updateCaptchaState = () => {
+  const getCaptchaToken = () => {
     if (!captchaWidget) {
-      captchaValid = true;
-      return;
+      return '';
     }
 
-    const widgetState = captchaWidget.getAttribute('data-captcha-state')
-      || captchaWidget.getAttribute('data-state')
-      || captchaWidget.dataset.state
-      || '';
-
-    const widgetToken = captchaWidget.getAttribute('data-token')
-      || captchaWidget.dataset.token
-      || captchaWidget.getAttribute('data-captcha-token')
-      || '';
-
-    captchaValid = widgetState === 'valid' || Boolean(widgetToken);
-  };
-
-  const updateSubmitState = () => {
-    if (!submitButton) return;
-
-    const shouldDisable = isSubmitting || !captchaValid;
-    submitButton.disabled = shouldDisable;
-    submitButton.setAttribute('aria-disabled', String(shouldDisable));
+    return (
+      captchaWidget.getAttribute('data-token') ||
+      captchaWidget.dataset.token ||
+      captchaWidget.getAttribute('data-captcha-token') ||
+      captchaWidget.getAttribute('data-smartcaptcha-token') ||
+      ''
+    );
   };
 
   const setStatus = (message, type = '') => {
@@ -98,7 +84,8 @@ if (contactForm) {
   const setSubmittingState = (submitting) => {
     isSubmitting = submitting;
     contactForm.setAttribute('aria-busy', String(submitting));
-    updateSubmitState();
+    submitButton.disabled = submitting;
+    submitButton.setAttribute('aria-disabled', String(submitting));
     submitButton.textContent = submitting ? 'Отправка...' : 'Отправить запрос';
 
     formFields.forEach((field) => {
@@ -114,20 +101,6 @@ if (contactForm) {
     return `req_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   };
 
-  const getSmartCaptchaToken = () => {
-    if (!captchaWidget) {
-      return '';
-    }
-
-    return (
-      captchaWidget.getAttribute('data-token') ||
-      captchaWidget.dataset.token ||
-      captchaWidget.getAttribute('data-captcha-token') ||
-      captchaWidget.getAttribute('data-smartcaptcha-token') ||
-      ''
-    );
-  };
-
   const getPayload = () => {
     const payload = {
       requestId: createRequestId(),
@@ -135,7 +108,7 @@ if (contactForm) {
       phone: '',
       email: '',
       description: '',
-      captchaToken: getSmartCaptchaToken(),
+      captchaToken: getCaptchaToken(),
     };
 
     formFields.forEach((field) => {
@@ -149,45 +122,10 @@ if (contactForm) {
     return payload;
   };
 
-  updateCaptchaState();
-  updateSubmitState();
-
-  if (captchaWidget) {
-    const captchaObserver = new MutationObserver(() => {
-      updateCaptchaState();
-      updateSubmitState();
-    });
-
-    captchaObserver.observe(captchaWidget, {
-      attributes: true,
-      childList: true,
-      subtree: true,
-    });
-
-    const onCaptchaSuccess = () => {
-      updateCaptchaState();
-      updateSubmitState();
-    };
-
-    window.addEventListener('smartcaptcha:success', onCaptchaSuccess);
-    window.addEventListener('smartcaptcha:reset', onCaptchaSuccess);
-    window.addEventListener('smartcaptcha:fail', () => {
-      captchaValid = false;
-      updateSubmitState();
-    });
-  }
-
   contactForm.addEventListener('submit', async (event) => {
     event.preventDefault();
 
     if (isSubmitting) {
-      return;
-    }
-
-    updateCaptchaState();
-
-    if (!captchaValid) {
-      setStatus('Подтвердите, что вы не робот', 'error');
       return;
     }
 
@@ -201,6 +139,11 @@ if (contactForm) {
 
     if (!emailRegex.test(payload.email)) {
       setStatus('Некорректный email', 'error');
+      return;
+    }
+
+    if (!payload.captchaToken) {
+      setStatus('Подтвердите, что вы не робот', 'error');
       return;
     }
 
@@ -233,6 +176,10 @@ if (contactForm) {
 
       setStatus(result.message || 'Заявка успешно отправлена', 'success');
       contactForm.reset();
+      const widget = document.querySelector('.smart-captcha');
+      if (widget && typeof widget.reset === 'function') {
+        widget.reset();
+      }
     } catch (error) {
       setStatus(error.message || 'Не удалось отправить заявку', 'error');
     } finally {
